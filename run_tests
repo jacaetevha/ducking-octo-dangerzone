@@ -1,0 +1,143 @@
+#!/bin/bash
+
+# This method of running tests in a Rails environment
+# does not prepare the database first. As a benefit, the
+# entire test run is much faster; the obvious drawback
+# is that the test database could be out-of-sync.
+#
+# In order to get your test database in sync, you can pass
+# the -m flag.
+#
+# You can specify tests by their path or by a regular
+# expression, which can be any valid regular expression
+# in Ruby.
+#
+# The script assumes that you are running in your Rails
+# root directory, and that there is a "test" sub-directory.
+#
+# Examples:
+#
+#   This will expand to a Ruby regular expression:
+#     run_tests -f job_review_
+#
+#   This will be fed to Ruby as is:
+#     run_tests -f '/(job|worker)_test/'
+#
+#   These will require the following test(s) without a regular expression:
+#     run_tests -f test/unit/job_test
+#     run_tests -f test/unit/job_test.rb -f test/functionals/job_controller_test.rb
+
+function usage()
+{
+  cat << EOF
+  usage: $0 -f [path(s)|regex(s)] options
+
+  This script runs tests specified by path(s) or regex(s). The
+  -f argument may be specified multiple times.
+
+  If the -n argument is given it will pass that to Test::Unit
+  for method level filtering.
+
+  OPTIONS:
+     -h      Show this message
+     -n      Run test methods that match this string
+     -f      Specify which test files to include (paths or regexs)
+     -m      Migrate the test database by running "rake db:test:prepare"
+
+  EXAMPLES:
+     $0 -f job -n scheduling
+     $0 -f test/unit/job_test.rb -f job_review_ -f '/(subm|worker)/'
+EOF
+}
+
+function set_env_vars {
+  RUBY_HEAP_MIN_SLOTS=500000
+  RUBY_HEAP_SLOTS_INCREMENT=500000
+  RUBY_HEAP_SLOTS_GROWTH_FACTOR=1
+  RUBY_GC_MALLOC_LIMIT=100000000
+  RUBY_HEAP_FREE_MIN=500000
+}
+
+function start_memcache {
+  echo "starting memcache"
+  memcached -d -P ~/.memcache.pid
+}
+
+function stop_memcache {
+  echo 'stopping memcache'
+  cat ~/.memcache.pid | xargs kill -9 
+}
+
+function set_env_and_run_tests {
+  start_memcache
+  set_env_vars
+  kickoff_tests
+  stop_memcache
+}
+
+function kickoff_tests {
+  cmd="%w{$tests}.each{|f| require f}"
+  echo 'ruby -I:lib:test -rtest/unit -e "' $cmd '"'
+  time ruby -I:lib:test -rtest/unit -e "$cmd"
+}
+
+function collect_tests {
+  for test in $*
+  do
+    if [[ "$test" == /* && "$test" == */ ]]
+    then
+      find_tests_by_regex $test
+      tests="$tests $files"
+    elif [[ "$test" != *test/* ]]
+    then
+      find_tests_by_regex "/$test/"
+      tests="$tests $files"
+    else
+      tests="$tests $test"
+    fi
+  done
+}
+
+function find_tests_by_regex {
+  files=`ruby -e "puts Dir['./test/**/*.rb'].select{|e| File.basename(e) =~ $1}.map{|e| e.sub('./', '')}.join(' ')"`
+}
+
+function run_matching_test_methods {
+  echo "ruby -Ilib:test -r test/unit $tests -n '/$matching_methods/'"
+  time ruby -Ilib:test -r test/unit $tests -n "/$matching_methods/"
+}
+
+run_single=0
+tests=""
+
+while getopts “hn:f:m” OPTION
+do
+     case $OPTION in
+         h)
+             usage
+             exit 1
+             ;;
+         n)
+             matching_methods=$OPTARG
+             run_single=1
+             ;;
+         f)
+             collect_tests $OPTARG
+             ;;
+         m)
+             rake db:test:prepare
+             echo; echo
+             ;;
+         ?)
+             usage
+             exit 1
+             ;;
+     esac
+done
+
+if [[ $run_single == 1 ]]
+then
+  run_matching_test_methods
+else
+  set_env_and_run_tests
+fi
