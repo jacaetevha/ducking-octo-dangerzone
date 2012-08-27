@@ -39,10 +39,10 @@ function usage()
   for method level filtering.
 
   OPTIONS:
-     -h      Show this message
      -n      Run test methods that match this string
      -f      Specify which test files to include (paths or regexs)
      -m      Migrate the test database by running "rake db:test:prepare"
+	 -h, -?  Show this message
 
   EXAMPLES:
      $0 -f job -n scheduling
@@ -111,7 +111,7 @@ function run_matching_test_methods {
 run_single=0
 tests=""
 
-while getopts “hn:f:m” OPTION
+while getopts “h:n:f:m:?” OPTION
 do
      case $OPTION in
          h)
