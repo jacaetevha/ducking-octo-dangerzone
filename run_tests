@@ -42,8 +42,8 @@ function usage()
      -n      Run test methods that match this string
      -f      Specify which test files to include (paths or regexs)
      -m      Migrate the test database by running "rake db:test:prepare"
-	 -h, -?  Show this message
-	 -c      Start memcached before the run and stop it after
+     -h, -?  Show this message
+     -c      Start memcached before the run and stop it after
 
   EXAMPLES:
      $0 -f job -n scheduling
@@ -120,7 +120,7 @@ function run_matching_test_methods {
 run_single=0
 tests=""
 
-while getopts “h:n:f:m:c:?” OPTION
+while getopts “h:n:f:c:?:m” OPTION
 do
      case $OPTION in
          h)
@@ -137,13 +137,13 @@ do
              rake db:test:prepare
              echo; echo
              ;;
-		 c)
-			 run_memcache = 1
-		 	 ;;
-		 ?)
-			 usage
-			 exit 1
-			 ;;
+	 c)
+	     run_memcache = 1
+             ;;
+	 ?)
+	     usage
+	     exit 1
+	     ;;
 	 esac
 done
 
