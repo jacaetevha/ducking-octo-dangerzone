@@ -39,10 +39,11 @@ function usage()
   for method level filtering.
 
   OPTIONS:
-     -h      Show this message
      -n      Run test methods that match this string
      -f      Specify which test files to include (paths or regexs)
      -m      Migrate the test database by running "rake db:test:prepare"
+     -h, -?  Show this message
+     -c      Start memcached before the run and stop it after
 
   EXAMPLES:
      $0 -f job -n scheduling
@@ -70,10 +71,18 @@ function stop_memcache {
 }
 
 function set_env_and_run_tests {
-  start_memcache
+  if [[ $run_memcache == 1 ]]
+  then
+  	start_memcache
+  fi
+
   set_env_vars
   kickoff_tests
-  stop_memcache
+
+  if [[ $run_memcache == 1 ]]
+  then
+	  stop_memcache
+  fi
 }
 
 function kickoff_tests {
@@ -111,7 +120,7 @@ function run_matching_test_methods {
 run_single=0
 tests=""
 
-while getopts “hn:f:m” OPTION
+while getopts “h:n:f:c:?:m” OPTION
 do
      case $OPTION in
          h)
@@ -128,10 +137,14 @@ do
              rake db:test:prepare
              echo; echo
              ;;
-         ?)
-             usage
+	 c)
+	     run_memcache = 1
              ;;
-     esac
+	 ?)
+	     usage
+	     exit 1
+	     ;;
+	 esac
 done
 
 if [[ "$tests" == "" ]]
